@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const httpProxy = require('http-proxy');
+const https = require('https');
+const net = require('net');
+const url = require('url');
 const auth = require('basic-auth');
 const ProxyManager = require('./ProxyManager');
 
@@ -75,24 +77,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  console.log(`[Proxy] Forwarding request to: ${req.url} via ${targetProxy.proxy}`);
+  console.log(`[HTTP Proxy] ${req.method} ${req.url} via ${targetProxy.proxy}`);
 
-  const proxy = httpProxy.createProxyServer({
-    target: {
-      host: targetProxy.host,
-      port: targetProxy.port
+  const parsedUrl = url.parse(req.url);
+  const targetHost = parsedUrl.hostname;
+  const targetPort = parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80);
+  const targetPath = parsedUrl.path;
+
+  const proxyReq = http.request({
+    host: targetProxy.host,
+    port: targetProxy.port,
+    method: req.method,
+    path: req.url,
+    headers: {
+      ...req.headers,
+      'Host': targetHost,
+      'Connection': 'close'
     },
-    changeOrigin: true,
-    timeout: 30000,
-    proxyTimeout: 30000
+    timeout: 30000
   });
 
-  proxy.on('error', (err, request, response) => {
-    console.error(`[Proxy] Error with ${targetProxy.proxy}:`, err.message);
+  proxyReq.on('response', (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
 
-    if (!response.headersSent) {
-      response.writeHead(502, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({
+  proxyReq.on('error', (err) => {
+    console.error(`[HTTP Proxy] Error with ${targetProxy.proxy}:`, err.message);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
         error: 'Proxy Error',
         message: err.message,
         proxy: targetProxy.proxy
@@ -100,7 +114,7 @@ const server = http.createServer((req, res) => {
     }
   });
 
-  proxy.web(req, res);
+  req.pipe(proxyReq);
 });
 
 server.on('connect', (req, clientSocket, head) => {
@@ -123,23 +137,43 @@ server.on('connect', (req, clientSocket, head) => {
 
   console.log(`[HTTPS Proxy] CONNECT ${req.url} via ${targetProxy.proxy}`);
 
-  const net = require('net');
-  const serverSocket = net.connect(targetProxy.port, targetProxy.host, () => {
-    clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-    serverSocket.write(head);
-    serverSocket.pipe(clientSocket);
-    clientSocket.pipe(serverSocket);
+  const proxySocket = net.connect(targetProxy.port, targetProxy.host, () => {
+    proxySocket.write(`CONNECT ${req.url} HTTP/1.1\r\n\r\n`);
+
+    proxySocket.once('data', (data) => {
+      const response = data.toString();
+
+      if (response.includes('200')) {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        proxySocket.pipe(clientSocket);
+        clientSocket.pipe(proxySocket);
+      } else {
+        console.error(`[HTTPS Proxy] Upstream proxy error: ${response.split('\r\n')[0]}`);
+        clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
+        clientSocket.end();
+        proxySocket.end();
+      }
+    });
   });
 
-  serverSocket.on('error', (err) => {
+  proxySocket.on('error', (err) => {
     console.error(`[HTTPS Proxy] Error with ${targetProxy.proxy}:`, err.message);
+    clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
     clientSocket.end();
   });
 
   clientSocket.on('error', (err) => {
     console.error('[HTTPS Proxy] Client socket error:', err.message);
-    serverSocket.end();
+    proxySocket.end();
   });
+
+  proxySocket.on('timeout', () => {
+    console.error(`[HTTPS Proxy] Timeout with ${targetProxy.proxy}`);
+    clientSocket.end();
+    proxySocket.end();
+  });
+
+  proxySocket.setTimeout(30000);
 });
 
 (async () => {
