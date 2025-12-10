@@ -1,7 +1,25 @@
 const http = require('http');
 const net = require('net');
 const url = require('url');
-const auth = require('basic-auth');
+
+// Parse Proxy-Authorization header
+function parseProxyAuth(req) {
+  const header = req.headers['proxy-authorization'];
+  if (!header) return null;
+
+  const match = header.match(/^Basic (.+)$/);
+  if (!match) return null;
+
+  const credentials = Buffer.from(match[1], 'base64').toString();
+  const index = credentials.indexOf(':');
+
+  if (index === -1) return null;
+
+  return {
+    name: credentials.slice(0, index),
+    pass: credentials.slice(index + 1)
+  };
+}
 
 class ProxyServerByUsername {
   constructor(config) {
@@ -67,7 +85,7 @@ class ProxyServerByUsername {
   }
 
   handleHttpRequest(req, res) {
-    const credentials = auth(req);
+    const credentials = parseProxyAuth(req);
 
     if (!credentials) {
       res.writeHead(407, {
@@ -150,7 +168,7 @@ class ProxyServerByUsername {
   }
 
   handleHttpsConnect(req, clientSocket, head) {
-    const credentials = auth(req);
+    const credentials = parseProxyAuth(req);
 
     if (!credentials) {
       clientSocket.write('HTTP/1.1 407 Proxy Authentication Required\r\n');
