@@ -33,35 +33,49 @@ class ProxyManager {
     console.log('[ProxyManager] Stopped.');
   }
 
-  async updateProxies() {
-    try {
-      console.log('[ProxyManager] Fetching proxies from API...');
-      const response = await axios.get(this.apiUrl, {
-        timeout: 10000
-      });
-
-      if (response.data && response.data.status && response.data.proxies) {
-        const now = Math.floor(Date.now() / 1000);
-
-        const validProxies = response.data.proxies.filter(p => {
-          return p.expiry > now && p.secs_left > 0;
+  async updateProxies(retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`[ProxyManager] Fetching proxies from API... (Attempt ${attempt}/${retries})`);
+        const response = await axios.get(this.apiUrl, {
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'AMAC-Proxy-Server/1.0'
+          }
         });
 
-        this.proxies = validProxies.map(p => ({
-          proxy: p.proxy,
-          host: p.proxy.split(':')[0],
-          port: parseInt(p.proxy.split(':')[1]),
-          expiry: p.expiry,
-          secsLeft: p.secs_left,
-          isp: p.isp
-        }));
+        if (response.data && response.data.status && response.data.proxies) {
+          const now = Math.floor(Date.now() / 1000);
 
-        console.log(`[ProxyManager] Updated: ${this.proxies.length} valid proxies (${response.data.length} total)`);
-      } else {
-        console.error('[ProxyManager] Invalid response format:', response.data);
+          const validProxies = response.data.proxies.filter(p => {
+            return p.expiry > now && p.secs_left > 0;
+          });
+
+          this.proxies = validProxies.map(p => ({
+            proxy: p.proxy,
+            host: p.proxy.split(':')[0],
+            port: parseInt(p.proxy.split(':')[1]),
+            expiry: p.expiry,
+            secsLeft: p.secs_left,
+            isp: p.isp
+          }));
+
+          console.log(`[ProxyManager] ✓ Updated: ${this.proxies.length} valid proxies (${response.data.length} total)`);
+          return;
+        } else {
+          console.error('[ProxyManager] Invalid response format:', response.data);
+        }
+      } catch (error) {
+        console.error(`[ProxyManager] ✗ Attempt ${attempt} failed:`, error.message);
+
+        if (attempt < retries) {
+          const waitTime = attempt * 2000;
+          console.log(`[ProxyManager] Waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          console.error('[ProxyManager] All retry attempts failed. Keeping existing proxies.');
+        }
       }
-    } catch (error) {
-      console.error('[ProxyManager] Error fetching proxies:', error.message);
     }
   }
 
