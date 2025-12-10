@@ -154,6 +154,16 @@ const updateProxyServer = () => {
     }, UPDATE_INTERVAL);
 
     const controlServer = http.createServer(app);
+
+    controlServer.on('error', (err) => {
+      console.error(`❌ Control Server Error:`, err.message);
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${CONTROL_PORT} is already in use!`);
+        console.error(`Try: lsof -i :${CONTROL_PORT} or netstat -tulpn | grep ${CONTROL_PORT}`);
+      }
+      process.exit(1);
+    });
+
     controlServer.listen(CONTROL_PORT, '0.0.0.0', () => {
       const stats = proxyServer.getStats();
 

@@ -51,13 +51,18 @@ class ProxyServerByUsername {
       this.handleHttpsConnect(req, clientSocket, head);
     });
 
+    this.server.on('error', (err) => {
+      console.error('[ProxyServer] Server error:', err.message);
+      if (err.code === 'EADDRINUSE') {
+        console.error(`[ProxyServer] Port ${this.port} is already in use!`);
+        console.error(`[ProxyServer] Try: lsof -i :${this.port} or netstat -tulpn | grep ${this.port}`);
+        process.exit(1);
+      }
+    });
+
     this.server.listen(this.port, '0.0.0.0', () => {
       console.log(`[ProxyServer] ✓ Server listening on 0.0.0.0:${this.port}`);
       console.log(`[ProxyServer] Handling ${this.proxyMap.size} proxies via username authentication`);
-    });
-
-    this.server.on('error', (err) => {
-      console.error('[ProxyServer] Server error:', err.message);
     });
   }
 
