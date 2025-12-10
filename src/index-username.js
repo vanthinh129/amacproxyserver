@@ -73,7 +73,8 @@ axios.get('http://example.com', {<br>
       <ul>
         <li><a href="/status">GET /status</a> - Server status and proxy list</li>
         <li><a href="/health">GET /health</a> - Health check</li>
-        <li><a href="/list">GET /list</a> - List all proxies with usernames</li>
+        <li><a href="/list">GET /list</a> - List all proxies with details</li>
+        <li><a href="/proxies">GET /proxies</a> - Simple proxy list (array format)</li>
       </ul>
 
       <h2>📡 Available Proxies (${stats.totalProxies})</h2>
@@ -124,7 +125,19 @@ app.get('/list', (req, res) => {
   const stats = proxyServer.getStats();
   res.json({
     success: true,
+    length: stats.proxies.length,
     proxies: stats.proxies
+  });
+});
+
+app.get('/proxies', (req, res) => {
+  const stats = proxyServer.getStats();
+  const proxyList = stats.proxies.map(p => p.proxy);
+
+  res.json({
+    status: true,
+    length: proxyList.length,
+    proxies: proxyList
   });
 });
 
@@ -177,6 +190,7 @@ const updateProxyServer = () => {
       console.log(`   - Dashboard: http://localhost:${CONTROL_PORT}/`);
       console.log(`   - Status:    http://localhost:${CONTROL_PORT}/status`);
       console.log(`   - List:      http://localhost:${CONTROL_PORT}/list`);
+      console.log(`   - Proxies:   http://localhost:${CONTROL_PORT}/proxies`);
       console.log('');
       console.log(`🌐 Proxy Server: 0.0.0.0:${PROXY_PORT}`);
       console.log(`   - Total Proxies: ${stats.totalProxies}`);
