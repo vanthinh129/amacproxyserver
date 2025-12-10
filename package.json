@@ -4,9 +4,10 @@
   "description": "Dynamic Proxy Server - Forward requests through rotating proxies",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index-multi.js",
+    "start": "node src/index-username.js",
+    "start:multi": "node src/index-multi.js",
     "start:old": "node src/index.js",
-    "dev": "nodemon src/index-multi.js",
+    "dev": "nodemon src/index-username.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["proxy", "server", "rotating-proxy", "dynamic-proxy"],
