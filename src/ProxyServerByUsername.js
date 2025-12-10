@@ -30,6 +30,7 @@ class ProxyServerByUsername {
     this.port = config.port || 11000;
     this.password = config.password || 'mypass';
     this.usernamePrefix = config.usernamePrefix || 'proxy';
+    this.serverHost = config.serverHost || 'localhost';
   }
 
   updateProxies(proxies) {
@@ -247,13 +248,17 @@ class ProxyServerByUsername {
       port: this.port,
       usernamePrefix: this.usernamePrefix,
       usernameRange: `${this.usernamePrefix}1 - ${this.usernamePrefix}${this.proxyList.length}`,
-      proxies: this.proxyList.map((p, i) => ({
-        username: `${this.usernamePrefix}${i + 1}`,
-        proxy: p.proxy,
-        isp: p.isp,
-        secsLeft: p.secsLeft,
-        expiry: p.expiry
-      }))
+      proxies: this.proxyList.map((p, i) => {
+        const username = `${this.usernamePrefix}${i + 1}`;
+        return {
+          username: username,
+          proxy: `${username}:${this.password}@${this.serverHost}:${this.port}`,
+          proxy_root: p.proxy,
+          isp: p.isp,
+          secsLeft: p.secsLeft,
+          expiry: p.expiry
+        };
+      })
     };
   }
 }

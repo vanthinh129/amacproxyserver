@@ -6,6 +6,7 @@ const ProxyServerByUsername = require('./ProxyServerByUsername');
 
 const CONTROL_PORT = parseInt(process.env.CONTROL_PORT) || 11001;
 const PROXY_PORT = parseInt(process.env.PROXY_PORT) || 11000;
+const SERVER_HOST = process.env.SERVER_HOST || 'localhost';
 const PROXY_API_URL = process.env.PROXY_API_URL || 'http://217.15.163.20:8549/api/cron/getliveproxiesdata?authensone=mysonetrend&time=60';
 const UPDATE_INTERVAL = parseInt(process.env.UPDATE_INTERVAL) || 30000;
 const PROXY_PASSWORD = process.env.PROXY_PASSWORD || 'mypass';
@@ -16,7 +17,8 @@ const proxyManager = new ProxyManager(PROXY_API_URL, UPDATE_INTERVAL);
 const proxyServer = new ProxyServerByUsername({
   port: PROXY_PORT,
   password: PROXY_PASSWORD,
-  usernamePrefix: USERNAME_PREFIX
+  usernamePrefix: USERNAME_PREFIX,
+  serverHost: SERVER_HOST
 });
 
 app.use(express.json());
