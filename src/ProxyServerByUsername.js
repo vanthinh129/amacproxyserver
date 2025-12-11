@@ -133,7 +133,8 @@ class ProxyServerByUsername {
       return;
     }
 
-    console.log(`[HTTP] [${credentials.name}] ${req.method} ${req.url} via ${proxyInfo.proxy} (${proxyInfo.isp})`);
+    const clientIp = req.socket.remoteAddress || req.connection.remoteAddress || 'unknown';
+    console.log(`[HTTP] [${credentials.name}] [${clientIp}] ${req.method} ${req.url} via ${proxyInfo.proxy} (${proxyInfo.isp})`);
 
     const proxyReq = http.request({
       host: proxyInfo.host,
@@ -154,7 +155,7 @@ class ProxyServerByUsername {
     });
 
     proxyReq.on('error', (err) => {
-      console.error(`[HTTP] [${credentials.name}] Error:`, err.message);
+      console.error(`[HTTP] [${credentials.name}] [${clientIp}] Error:`, err.message);
       if (!res.headersSent) {
         res.writeHead(502, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -192,7 +193,8 @@ class ProxyServerByUsername {
       return;
     }
 
-    console.log(`[HTTPS] [${credentials.name}] CONNECT ${req.url} via ${proxyInfo.proxy} (${proxyInfo.isp})`);
+    const clientIp = clientSocket.remoteAddress || 'unknown';
+    console.log(`[HTTPS] [${credentials.name}] [${clientIp}] CONNECT ${req.url} via ${proxyInfo.proxy} (${proxyInfo.isp})`);
 
     const proxySocket = net.connect(proxyInfo.port, proxyInfo.host, () => {
       proxySocket.write(`CONNECT ${req.url} HTTP/1.1\r\n\r\n`);
@@ -205,7 +207,7 @@ class ProxyServerByUsername {
           proxySocket.pipe(clientSocket);
           clientSocket.pipe(proxySocket);
         } else {
-          console.error(`[HTTPS] [${credentials.name}] Upstream error: ${response.split('\r\n')[0]}`);
+          console.error(`[HTTPS] [${credentials.name}] [${clientIp}] Upstream error: ${response.split('\r\n')[0]}`);
           clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
           clientSocket.end();
           proxySocket.end();
@@ -214,7 +216,7 @@ class ProxyServerByUsername {
     });
 
     proxySocket.on('error', (err) => {
-      console.error(`[HTTPS] [${credentials.name}] Error:`, err.message);
+      console.error(`[HTTPS] [${credentials.name}] [${clientIp}] Error:`, err.message);
       clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
       clientSocket.end();
     });
@@ -225,6 +227,7 @@ class ProxyServerByUsername {
 
     proxySocket.setTimeout(30000);
     proxySocket.on('timeout', () => {
+      console.error(`[HTTPS] [${credentials.name}] [${clientIp}] Timeout with ${proxyInfo.proxy}`);
       clientSocket.end();
       proxySocket.end();
     });
